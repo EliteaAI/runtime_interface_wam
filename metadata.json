@@ -1,0 +1,9 @@
+{
+  "name": "Runtime interface: WAM",
+  "version": "0.2",
+  "depends_on": ["auth"],
+  "init_after": [],
+  "version_requirements": {
+    "pylon": ">= 1.2.7"
+  }
+}

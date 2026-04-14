@@ -1,0 +1,14 @@
+wam_auth_endpoint: null
+wam_userid: null
+wam_password: null
+wam_inference_endpoint: null
+wam_api_version: null
+wam_appid: null
+
+proxy_ssl_verify: false
+proxy_connect_timeout: 100
+proxy_read_timeout: 600
+proxy_chunk_size: null
+
+url_prefix: /llm
+proxy_consumer_timeout: 600
