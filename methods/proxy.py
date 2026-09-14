@@ -24,6 +24,21 @@ from werkzeug.datastructures.headers import Headers  # pylint: disable=E0401
 
 from tools import context  # pylint: disable=E0401
 
+from ..utils.metering import (
+    MODE_OFF,
+    PLATFORM_ATTRIBUTION_AUTH_KEY,
+    PLATFORM_PROJECT_ID_AUTH_KEY,
+    PLATFORM_RAW_MODEL_AUTH_KEY,
+    PLATFORM_RUN_ID_AUTH_KEY,
+    request_usage_frame,
+    resolve_project_id,
+    usage_hooks,
+    usage_mode,
+)
+
+ELITEA_RUN_ID_HEADER = "X-Elitea-Run-Id"
+ELITEA_ATTRIBUTION_HEADER = "X-Elitea-Attribution"
+
 
 class Method:  # pylint: disable=E1101,R0903,W0201
     """
@@ -142,8 +157,6 @@ class Method:  # pylint: disable=E1101,R0903,W0201
     @web.method()
     def prepare_request(self, proxy_target, proxy_auth):  # pylint: disable=R0912,R0914
         """ Method """
-        _ = proxy_auth
-        #
         proxy_target["headers"] = self.preprocess_headers(proxy_target["headers"])
         proxy_target["headers"]["Accept-Encoding"] = "identity"
         #
@@ -164,11 +177,20 @@ class Method:  # pylint: disable=E1101,R0903,W0201
             # TODO: forward to models endpoint
             #
             if target_model_name is not None:
-                return "Error", 404
+                return {"error": {"message": f"Unknown model: {target_model_name}"}}, 404
             #
             return result
         #
         proxy_target["headers"].remove("Authorization")
+        #
+        # Internal correlation ids: kept for metering, never forwarded to the WAM upstream
+        proxy_auth[PLATFORM_RUN_ID_AUTH_KEY] = proxy_target["headers"].get(ELITEA_RUN_ID_HEADER)
+        proxy_target["headers"].remove(ELITEA_RUN_ID_HEADER)
+        #
+        proxy_auth[PLATFORM_ATTRIBUTION_AUTH_KEY] = proxy_target["headers"].get(
+            ELITEA_ATTRIBUTION_HEADER,
+        )
+        proxy_target["headers"].remove(ELITEA_ATTRIBUTION_HEADER)
         #
         # TODO: wam_appid
         #
@@ -178,7 +200,19 @@ class Method:  # pylint: disable=E1101,R0903,W0201
             model_name = proxy_target["json"].pop("model")
         #
         if model_name is None:
-            return "Error", 400
+            return {"error": {"message": 'Request body is missing the "model" field'}}, 400
+        #
+        proxy_auth[PLATFORM_RAW_MODEL_AUTH_KEY] = model_name
+        #
+        hooks = usage_hooks()
+        #
+        # Resolved here, on the request thread, while the client headers are still intact
+        if usage_mode(hooks) != MODE_OFF:
+            proxy_auth[PLATFORM_PROJECT_ID_AUTH_KEY] = resolve_project_id(
+                hooks, proxy_auth, proxy_target["headers"],
+            )
+            #
+            request_usage_frame(hooks, proxy_target)
         #
         proxy_target["headers"].remove("Host")
         #
