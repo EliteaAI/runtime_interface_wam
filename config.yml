@@ -4,6 +4,7 @@ wam_password: null
 wam_inference_endpoint: null
 wam_api_version: null
 wam_appid: null
+wam_additional_headers: {}
 
 proxy_ssl_verify: false
 proxy_connect_timeout: 100
